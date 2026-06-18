@@ -4,6 +4,12 @@ import { useGameStore } from '../stores/gameStore'
 import gameConfig from '../config/gameConfig'
 import type { StartPreset, StartPresetModifiers } from '../types/game'
 
+const props = withDefaults(defineProps<{
+  forceMode?: boolean
+}>(), {
+  forceMode: false
+})
+
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
@@ -120,11 +126,20 @@ function selectPreset(id: string) {
 
 function confirmStart() {
   gameStore.resetGame(selectedPresetId.value)
-  emit('close')
+  if (!props.forceMode) {
+    emit('close')
+  }
 }
 
 function handleOverlayClick(e: MouseEvent) {
+  if (props.forceMode) return
   if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
+    emit('close')
+  }
+}
+
+function handleClose() {
+  if (!props.forceMode) {
     emit('close')
   }
 }
@@ -135,7 +150,11 @@ function handleOverlayClick(e: MouseEvent) {
     <div class="modal new-game-modal">
       <div class="modal-header">
         <h2>🎮 选择你的开局</h2>
-        <button class="close-btn" @click="emit('close')">✕</button>
+        <button
+          v-if="!forceMode"
+          class="close-btn"
+          @click="handleClose"
+        >✕</button>
       </div>
 
       <div class="modal-body">
@@ -186,7 +205,14 @@ function handleOverlayClick(e: MouseEvent) {
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">取消</button>
+        <div v-if="forceMode" class="force-mode-hint">
+          ⚠️ 请选择一个开局以开始游戏
+        </div>
+        <button
+          v-if="!forceMode"
+          class="btn btn-secondary"
+          @click="handleClose"
+        >取消</button>
         <button class="btn btn-primary" @click="confirmStart">
           🚀 以「{{ selectedPreset.name }}」开始
         </button>
@@ -462,6 +488,15 @@ function handleOverlayClick(e: MouseEvent) {
   box-shadow: 0 4px 12px rgba(var(--accent-primary-rgb, 236, 72, 153), 0.4);
 }
 
+.force-mode-hint {
+  flex: 1;
+  color: #f59e0b;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
 @media (max-width: 640px) {
   .preset-list {
     grid-template-columns: repeat(2, 1fr);
@@ -478,6 +513,11 @@ function handleOverlayClick(e: MouseEvent) {
   .modal-footer {
     padding: 16px 20px;
     flex-direction: column-reverse;
+  }
+
+  .force-mode-hint {
+    justify-content: center;
+    margin-bottom: 8px;
   }
 
   .btn {

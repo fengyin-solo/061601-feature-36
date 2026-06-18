@@ -55,6 +55,7 @@ export const useGameStore = defineStore('game', () => {
   const showEventModal = ref(false)
   const darkMode = ref(false)
   const currentStartPresetId = ref<string>('normal')
+  const gameInitialized = ref(false)
 
   const characters = ref<CharacterState[]>(
     gameConfig.characters.map(c => ({
@@ -494,7 +495,12 @@ export const useGameStore = defineStore('game', () => {
     logIdCounter = 0
 
     addLog('system', `🎮 游戏开始！【${preset.name}】 - ${preset.tagline}`)
+    gameInitialized.value = true
     checkAndTriggerEvent()
+  }
+
+  function markGameInitialized() {
+    gameInitialized.value = true
   }
 
   function saveLegacyCards(cards: string[]) {
@@ -546,6 +552,7 @@ export const useGameStore = defineStore('game', () => {
     currentStartPreset,
     presetModifiers,
     effectiveMaxActionsPerDay,
+    gameInitialized,
     addLog,
     saveHistory,
     rollbackToStep,
@@ -558,6 +565,7 @@ export const useGameStore = defineStore('game', () => {
     toggleDarkMode,
     resetGame,
     initGame,
-    checkAndTriggerEvent
+    checkAndTriggerEvent,
+    markGameInitialized
   }
 })
