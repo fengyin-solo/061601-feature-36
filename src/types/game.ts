@@ -101,4 +101,28 @@ export interface GameConfig {
   events: GameEventConfig[]
   actions: ActionConfig[]
   workRewards: { min: number; max: number }
+  startPresets: StartPreset[]
+}
+
+export interface StartPreset {
+  id: string
+  name: string
+  icon: string
+  description: string
+  tagline: string
+  modifiers: StartPresetModifiers
+}
+
+export interface StartPresetModifiers {
+  initialResources?: number
+  maxActionsPerDay?: number
+  baseAffinityBonus?: number
+  baseMoodBonus?: number
+  affinityGainMultiplier?: number
+  resourceGainMultiplier?: number
+  moodDecayMultiplier?: number
+  affinityDecayMultiplier?: number
+  workRewardsMultiplier?: number
+  unlockAllCharacters?: boolean
+  startWithCards?: boolean
 }

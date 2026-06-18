@@ -305,7 +305,73 @@ export const gameConfig: GameConfig = {
     { type: 'work', name: '打工', icon: '💼', description: '辛苦工作赚取代币', energyCost: 2 }
   ],
 
-  workRewards: { min: 15, max: 35 }
+  workRewards: { min: 15, max: 35 },
+
+  startPresets: [
+    {
+      id: 'normal',
+      name: '普通人生',
+      icon: '🌱',
+      tagline: '从零开始的校园恋爱',
+      description: '标准开局，没有特殊加成。享受最纯粹的游戏体验，用你的真心去打动每一个人。',
+      modifiers: {}
+    },
+    {
+      id: 'rich',
+      name: '富二代',
+      icon: '💎',
+      tagline: '有钱就是可以为所欲为',
+      description: '初始拥有大量代币，打工收益更高。可以靠送礼物快速提升好感，但聊天获取的好感略有减少。',
+      modifiers: {
+        initialResources: 300,
+        workRewardsMultiplier: 1.5,
+        affinityGainMultiplier: 0.85,
+        resourceGainMultiplier: 1.3
+      }
+    },
+    {
+      id: 'social',
+      name: '社交达人',
+      icon: '🌟',
+      tagline: '天生的魅力偶像',
+      description: '所有角色初始好感度更高，聊天和互动获得的好感更多。但初始资金较少，需要精打细算。',
+      modifiers: {
+        initialResources: 50,
+        baseAffinityBonus: 15,
+        baseMoodBonus: 15,
+        affinityGainMultiplier: 1.3,
+        moodDecayMultiplier: 0.8
+      }
+    },
+    {
+      id: 'productive',
+      name: '时间管理大师',
+      icon: '⚡',
+      tagline: '把每一分钟都用到极致',
+      description: '每天拥有更多行动次数，可以做更多事情。但每天的心情和好感衰减也更快，需要持续互动维持。',
+      modifiers: {
+        maxActionsPerDay: 5,
+        initialResources: 120,
+        moodDecayMultiplier: 1.4,
+        affinityDecayMultiplier: 1.3,
+        workRewardsMultiplier: 0.9
+      }
+    },
+    {
+      id: 'legacy',
+      name: '继承记忆',
+      icon: '📖',
+      tagline: '带着回忆开启新旅程',
+      description: '所有角色开局即解锁，保留上一周目收集的卡牌。适合已经通关过的玩家，体验隐藏剧情。',
+      modifiers: {
+        initialResources: 150,
+        unlockAllCharacters: true,
+        startWithCards: true,
+        baseAffinityBonus: 5,
+        affinityGainMultiplier: 1.1
+      }
+    }
+  ]
 }
 
 export default gameConfig

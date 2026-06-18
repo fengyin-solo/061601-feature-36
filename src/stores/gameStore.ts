@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TimeOfDay, ActionType, GameEventConfig, EventChoice } from '../types/game'
+import type { TimeOfDay, ActionType, GameEventConfig, EventChoice, StartPreset, StartPresetModifiers } from '../types/game'
 import gameConfig from '../config/gameConfig'
 import {
   clamp,
@@ -43,6 +43,8 @@ export interface HistorySnapshot {
   logs: LogEntry[]
 }
 
+const CARDS_STORAGE_KEY = 'love_story_collected_cards_legacy'
+
 export const useGameStore = defineStore('game', () => {
   const day = ref(1)
   const timeSlot = ref<TimeOfDay>('morning')
@@ -52,6 +54,7 @@ export const useGameStore = defineStore('game', () => {
   const currentEvent = ref<GameEventConfig | null>(null)
   const showEventModal = ref(false)
   const darkMode = ref(false)
+  const currentStartPresetId = ref<string>('normal')
 
   const characters = ref<CharacterState[]>(
     gameConfig.characters.map(c => ({
@@ -68,6 +71,26 @@ export const useGameStore = defineStore('game', () => {
   const logs = ref<LogEntry[]>([])
   const history = ref<HistorySnapshot[]>([])
   let logIdCounter = 0
+
+  const currentStartPreset = computed(() =>
+    gameConfig.startPresets.find(p => p.id === currentStartPresetId.value) || gameConfig.startPresets[0]
+  )
+
+  const presetModifiers = computed<StartPresetModifiers>(() =>
+    currentStartPreset.value.modifiers
+  )
+
+  const effectiveMaxActionsPerDay = computed(() =>
+    presetModifiers.value.maxActionsPerDay ?? gameConfig.maxActionsPerDay
+  )
+
+  const effectiveMoodDecay = computed(() =>
+    gameConfig.moodDecayPerDay * (presetModifiers.value.moodDecayMultiplier ?? 1)
+  )
+
+  const effectiveAffinityDecay = computed(() =>
+    gameConfig.affinityDecayPerDay * (presetModifiers.value.affinityDecayMultiplier ?? 1)
+  )
 
   const unlockedCharacters = computed(() =>
     characters.value.filter(c => c.unlocked)
@@ -134,8 +157,10 @@ export const useGameStore = defineStore('game', () => {
     const char = getCharacterState(characterId)
     if (!char || !char.unlocked) return
     const oldAffinity = char.affinity
+    const multiplier = presetModifiers.value.affinityGainMultiplier ?? 1
+    const finalChange = change > 0 ? Math.round(change * multiplier) : change
     char.affinity = clamp(
-      char.affinity + change,
+      char.affinity + finalChange,
       gameConfig.minAffinity,
       gameConfig.maxAffinity
     )
@@ -180,17 +205,17 @@ export const useGameStore = defineStore('game', () => {
   function nextDay() {
     day.value++
     timeSlot.value = gameConfig.timeSlots[0]
-    actionsRemaining.value = gameConfig.maxActionsPerDay
+    actionsRemaining.value = effectiveMaxActionsPerDay.value
 
     characters.value.forEach(char => {
       if (char.unlocked) {
         char.mood = clamp(
-          char.mood - gameConfig.moodDecayPerDay,
+          char.mood - effectiveMoodDecay.value,
           gameConfig.minMood,
           gameConfig.maxMood
         )
         char.affinity = clamp(
-          char.affinity - gameConfig.affinityDecayPerDay,
+          char.affinity - effectiveAffinityDecay.value,
           gameConfig.minAffinity,
           gameConfig.maxAffinity
         )
@@ -307,7 +332,10 @@ export const useGameStore = defineStore('game', () => {
 
   function performWork(): boolean {
     const { min, max } = gameConfig.workRewards
-    const earned = randomInt(min, max)
+    const workMultiplier = presetModifiers.value.workRewardsMultiplier ?? 1
+    const resourceMultiplier = presetModifiers.value.resourceGainMultiplier ?? 1
+    const baseEarned = randomInt(min, max)
+    const earned = Math.round(baseEarned * workMultiplier * resourceMultiplier)
     resources.value += earned
 
     characters.value.forEach(char => {
@@ -374,7 +402,13 @@ export const useGameStore = defineStore('game', () => {
     })
 
     if (choice.resourceChange !== undefined) {
-      resources.value = Math.max(0, resources.value + choice.resourceChange)
+      const multiplier = choice.resourceChange > 0
+        ? (presetModifiers.value.resourceGainMultiplier ?? 1)
+        : 1
+      const finalChange = choice.resourceChange > 0
+        ? Math.round(choice.resourceChange * multiplier)
+        : choice.resourceChange
+      resources.value = Math.max(0, resources.value + finalChange)
     }
 
     if (choice.unlockCharacterId) {
@@ -418,31 +452,69 @@ export const useGameStore = defineStore('game', () => {
     darkMode.value = !darkMode.value
   }
 
-  function resetGame() {
+  function resetGame(presetId?: string) {
+    const preset = presetId
+      ? gameConfig.startPresets.find(p => p.id === presetId) || gameConfig.startPresets[0]
+      : gameConfig.startPresets[0]
+    currentStartPresetId.value = preset.id
+    const mod = preset.modifiers
+
+    const prevCards = [...collectedCards.value]
+    saveLegacyCards(prevCards)
+
     day.value = 1
     timeSlot.value = 'morning'
-    actionsRemaining.value = gameConfig.maxActionsPerDay
-    resources.value = gameConfig.initialResources
+    actionsRemaining.value = mod.maxActionsPerDay ?? gameConfig.maxActionsPerDay
+    resources.value = mod.initialResources ?? gameConfig.initialResources
     selectedCharacterId.value = null
     currentEvent.value = null
     showEventModal.value = false
 
+    const affinityBonus = mod.baseAffinityBonus ?? 0
+    const moodBonus = mod.baseMoodBonus ?? 0
     characters.value = gameConfig.characters.map(c => ({
       id: c.id,
-      affinity: c.baseAffinity,
-      mood: c.baseMood,
-      unlocked: c.unlocked && !c.hidden
+      affinity: clamp(c.baseAffinity + affinityBonus, gameConfig.minAffinity, gameConfig.maxAffinity),
+      mood: clamp(c.baseMood + moodBonus, gameConfig.minMood, gameConfig.maxMood),
+      unlocked: mod.unlockAllCharacters ? true : (c.unlocked && !c.hidden)
     }))
 
     flags.value = []
     triggeredEvents.value = []
-    collectedCards.value = []
+
+    if (mod.startWithCards) {
+      const legacyCards = loadLegacyCards()
+      collectedCards.value = [...new Set([...prevCards, ...legacyCards])]
+    } else {
+      collectedCards.value = []
+    }
+
     logs.value = []
     history.value = []
     logIdCounter = 0
 
-    addLog('system', '🎮 游戏开始！欢迎来到恋爱物语')
+    addLog('system', `🎮 游戏开始！【${preset.name}】 - ${preset.tagline}`)
     checkAndTriggerEvent()
+  }
+
+  function saveLegacyCards(cards: string[]) {
+    try {
+      const existing = loadLegacyCards()
+      const merged = [...new Set([...existing, ...cards])]
+      localStorage.setItem(CARDS_STORAGE_KEY, JSON.stringify(merged))
+    } catch (e) {
+      console.error('Failed to save legacy cards:', e)
+    }
+  }
+
+  function loadLegacyCards(): string[] {
+    try {
+      const data = localStorage.getItem(CARDS_STORAGE_KEY)
+      return data ? JSON.parse(data) : []
+    } catch (e) {
+      console.error('Failed to load legacy cards:', e)
+      return []
+    }
   }
 
   function initGame() {
@@ -470,6 +542,10 @@ export const useGameStore = defineStore('game', () => {
     currentEvent,
     showEventModal,
     darkMode,
+    currentStartPresetId,
+    currentStartPreset,
+    presetModifiers,
+    effectiveMaxActionsPerDay,
     addLog,
     saveHistory,
     rollbackToStep,

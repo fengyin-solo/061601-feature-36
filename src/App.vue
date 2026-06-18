@@ -11,6 +11,7 @@ import SaveModal from './components/SaveModal.vue'
 import CardCollection from './components/CardCollection.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import GiftModal from './components/GiftModal.vue'
+import NewGameModal from './components/NewGameModal.vue'
 
 const gameStore = useGameStore()
 const saveStore = useSaveStore()
@@ -19,6 +20,7 @@ const showSaveModal = ref(false)
 const showCards = ref(false)
 const showHistory = ref(false)
 const showGiftModal = ref(false)
+const showNewGameModal = ref(false)
 
 const theme = computed(() => gameStore.darkMode ? 'dark' : 'light')
 
@@ -38,12 +40,18 @@ onMounted(() => {
     if (confirm('检测到自动存档，是否继续游戏？')) {
       saveStore.loadAutoSave()
     } else {
-      gameStore.resetGame()
+      showNewGameModal.value = true
     }
   } else {
-    gameStore.resetGame()
+    showNewGameModal.value = true
   }
 })
+
+function handleReset() {
+  if (confirm('确定要开始新游戏吗？当前进度将丢失（卡牌会被保留用于继承记忆模式）')) {
+    showNewGameModal.value = true
+  }
+}
 </script>
 
 <template>
@@ -53,7 +61,7 @@ onMounted(() => {
       @toggle-cards="showCards = true"
       @toggle-history="showHistory = true"
       @toggle-theme="gameStore.toggleDarkMode()"
-      @reset="gameStore.resetGame()"
+      @reset="handleReset"
     />
     
     <div class="main-content">
@@ -72,6 +80,7 @@ onMounted(() => {
     <CardCollection v-if="showCards" @close="showCards = false" />
     <HistoryPanel v-if="showHistory" @close="showHistory = false" />
     <GiftModal v-if="showGiftModal" @close="showGiftModal = false" />
+    <NewGameModal v-if="showNewGameModal" @close="showNewGameModal = false" />
   </div>
 </template>
 
